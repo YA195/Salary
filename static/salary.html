@@ -1,0 +1,15 @@
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        fetch('/get_names')
+            .then(response => response.json())
+            .then(data => {
+                const select = document.getElementById('nameSelect');
+                data.forEach(item => {
+                    const option = document.createElement('option');
+                    option.value = item.name;
+                    option.textContent = item.name;
+                    select.appendChild(option);
+                });
+            });
+    });
+</script>

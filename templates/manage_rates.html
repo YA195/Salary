@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>إدارة المعدلات</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #1a1a1a;
+            color: #ffffff;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .form-control, .form-select {
+            background-color: #2d2d2d;
+            color: #ffffff;
+            border: 1px solid #404040;
+        }
+        .btn {
+            margin: 5px;
+        }
+        .table {
+            color: #ffffff;
+            background-color: #2d2d2d;
+        }
+        .table thead th {
+            background-color: #404040;
+        }
+        .card {
+            background-color: #2d2d2d;
+            border: 1px solid #404040;
+        }
+        .card-header {
+            background-color: #404040;
+            border-bottom: 1px solid #404040;
+        }
+        .form-label {
+        color: #ffffff;
+    }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="row mb-4">
+            <div class="col-md-6 mx-auto">
+                <div class="card">
+                    <div class="card-header">
+                        <h4 class="mb-0">تعديل البيانات</h4>
+                    </div>
+                    <div class="card-body">
+                        <form id="rateForm">
+                            <div class="mb-3">
+                                <label for="name" class="form-label">الاسم:</label>
+                                <select class="form-select" id="name" required>
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label for="rate" class="form-label">المعدل بالساعة:</label>
+                                <input type="number" class="form-control" id="rate" step="0.5" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="masroof" class="form-label">المصروف:</label>
+                                <input type="number" class="form-control" id="masroof" step="0.01" value="0">
+                            </div>
+                            <div class="d-flex gap-2">
+                                <button type="submit" class="btn btn-primary">حفظ</button>
+                                <a href="/salary" class="btn btn-secondary">رجوع</a>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table table-bordered">
+                <thead>
+                    <tr>
+                        <th>الاسم</th>
+                        <th>المعدل بالساعة</th>
+                        <th>المصروف</th>
+                        <th>تعديل</th>
+                    </tr>
+                </thead>
+                <tbody id="ratesTable">
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+    $(document).ready(function() {
+        $.get('/get_names', function(data) {
+            data.forEach(function(item) {
+                $('#name').append(
+                    $('<option></option>').val(item.name).text(item.name)
+                );
+            });
+        });
+        
+        function loadRates() {
+            $.get('/get_rates', function(data) {
+                $('#ratesTable').empty();
+                data.forEach(function(item) {
+                    $('#ratesTable').append(`
+                        <tr>
+                            <td>${item.name}</td>
+                            <td>${item.rate}</td>
+                            <td>${item.masroof}</td>
+                            <td>
+                                <button class="btn btn-primary btn-sm edit-rate" 
+                                        data-name="${item.name}" 
+                                        data-rate="${item.rate}"
+                                        data-masroof="${item.masroof}">
+                                    تعديل
+                                </button>
+                            </td>
+                        </tr>
+                    `);
+                });
+            });
+        }
+        
+        loadRates();
+        
+        $('#rateForm').submit(function(e) {
+            e.preventDefault();
+            $.post('/update_rate', {
+                name: $('#name').val(),
+                rate: $('#rate').val(),
+                masroof: $('#masroof').val()
+            }, function() {
+                loadRates();
+                $('#rate').val('');
+                $('#masroof').val('0');
+            });
+        });
+        
+        $(document).on('click', '.edit-rate', function() {
+            $('#name').val($(this).data('name'));
+            $('#rate').val($(this).data('rate'));
+            $('#masroof').val($(this).data('masroof'));
+        });
+    });
+    </script>
+</body>
+</html>

@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html dir="rtl">
+<head>
+    <title>تسجيل الدخول</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #1a1a1a;
+            color: #ffffff;
+        }
+        
+        .login-container {
+            max-width: 400px;
+            margin: 100px auto;
+            padding: 30px;
+            border-radius: 15px;
+            background-color: #2d2d2d;
+            box-shadow: 0 0 20px rgba(0,0,0,0.3);
+        }
+
+        .form-control {
+            background-color: #3d3d3d;
+            border: none;
+            color: #ffffff;
+            padding: 12px;
+        }
+
+        .form-control:focus {
+            background-color: #454545;
+            color: #ffffff;
+            box-shadow: 0 0 0 0.2rem rgba(255,255,255,0.15);
+        }
+
+        .btn-primary {
+            background-color: #007bff;
+            border: none;
+            padding: 12px;
+            font-weight: bold;
+            transition: all 0.3s ease;
+        }
+
+        .btn-primary:hover {
+            background-color: #0056b3;
+            transform: translateY(-2px);
+        }
+
+        .form-label {
+            color: #cccccc;
+            margin-bottom: 8px;
+        }
+
+        h2 {
+            color: #007bff;
+            margin-bottom: 30px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="login-container">
+            <h2 class="text-center">تسجيل الدخول</h2>
+            <form id="loginForm" action="/login" method="post">
+                <div class="mb-4">
+                    <label class="form-label">اسم المستخدم</label>
+                    <input type="text" class="form-control" id="username" name="username" required>
+                </div>
+                <div class="mb-4">
+                    <label class="form-label">كلمة المرور</label>
+                    <input type="password" class="form-control" id="password" name="password" required>
+                </div>
+                <button type="submit" class="btn btn-primary w-100">دخول</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        function validateLogin(event) {
+            event.preventDefault();
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+
+            if (username === 'Elmohandes@Degla' && password === 'Elmohandes@degla') {
+                window.location.href = '/salary';
+                return true;
+            } else {
+                alert('خطأ في اسم المستخدم او كلمة المرور');
+                return false;
+            }
+        }
+    </script>
+</body>
+</html>

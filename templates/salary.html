@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>نظام الرواتب</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #1a1a1a;
+            color: #ffffff;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .form-control, .form-select {
+            background-color: #2d2d2d;
+            color: #ffffff;
+            border: 1px solid #404040;
+        }
+        .btn {
+            margin: 5px;
+        }
+        .table {
+            color: #ffffff;
+            background-color: #2d2d2d;
+        }
+        .table thead th {
+            background-color: #404040;
+        }
+        .total-time {
+            margin-top: 20px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="row mb-4">
+            <div class="col-md-4">
+                <select class="form-select" id="nameSelect">
+                    <option value="" selected>اختر الاسم</option>
+                </select>
+            </div>
+            <div class="col-md-8">
+                <div class="d-flex gap-2">
+                    <input type="date" id="startDate" class="form-control" placeholder="من">
+                    <input type="date" id="endDate" class="form-control" placeholder="الي">
+                    <button class="btn btn-primary" id="lastWeekBtn">اخر اسبوع</button>
+                    <button class="btn btn-success">Print PDF</button>
+                    <button class="btn btn-info" id="showAllBtn">عرض الكل</button>
+                    <a href="{{ url_for('manage_rates') }}" class="btn btn-primary">
+                        إدارة المعدلات والمصروفات
+                    </a>
+                                        
+                </div>
+            </div>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table table-bordered">
+                <thead>
+                    <tr>
+                        <th>اليوم</th>
+                        <th>حضور</th>
+                        <th>انصراف</th>
+                        <th>الساعات</th>
+                        <th>قبض اليوم</th>
+                    </tr>
+                </thead>
+                <tbody id="attendanceData">
+                </tbody>
+            </table>
+            <div class="total-time" id="totalTime"></div>
+        </div>
+
+        <div id="tables-container"></div>
+    </div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+<div id="pdf-content" style="display: none; direction: rtl;">
+    <h2 style="text-align: center; font-family: Arial;">تقرير الرواتب</h2>
+    <p id="date-range" style="text-align: center;"></p>
+    <table style="width: 100%; border-collapse: collapse; margin-top: 20px;">
+        <thead>
+            <tr style="background-color: #404040; color: white;">
+                <th style="padding: 8px; border: 1px solid #ddd;">الاسم</th>
+                <th style="padding: 8px; border: 1px solid #ddd;">اليوم</th>
+                <th style="padding: 8px; border: 1px solid #ddd;">حضور</th>
+                <th style="padding: 8px; border: 1px solid #ddd;">انصراف</th>
+                <th style="padding: 8px; border: 1px solid #ddd;">الساعات</th>
+                <th style="padding: 8px; border: 1px solid #ddd;">المرتب</th>
+            </tr>
+        </thead>
+        <tbody id="pdf-table-body"></tbody>
+    </table>
+</div>
+
+<script>
+function formatTime(dateTimeStr) {
+    if (!dateTimeStr) return '';
+    const date = new Date(dateTimeStr);
+    return date.toLocaleTimeString('en-US', {
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+    });
+}
+
+function formatDate(dateStr) {
+    if (!dateStr) return '';
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('ar-EG', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'numeric',
+        day: 'numeric'
+    });
+}
+
+function getLastWeekDates() {
+    const today = new Date();
+    const lastThursday = new Date();
+    
+    while (lastThursday.getDay() !== 4) {
+        lastThursday.setDate(lastThursday.getDate() - 1);
+    }
+    
+    const previousFriday = new Date(lastThursday);
+    previousFriday.setDate(lastThursday.getDate() - 6);
+    
+    return {
+        from: previousFriday.toISOString().split('T')[0],
+        to: lastThursday.toISOString().split('T')[0]
+    };
+}
+
+function loadAttendance() {
+    const name = document.getElementById('nameSelect').value;
+    const startDate = document.getElementById('startDate').value;
+    const endDate = document.getElementById('endDate').value;
+
+    if (!name || !startDate || !endDate) return;
+
+    fetch(`/get_attendance?name=${name}&start_date=${startDate}&end_date=${endDate}`)
+        .then(response => response.json())
+        .then(data => {
+            const tbody = document.getElementById('attendanceData');
+            tbody.innerHTML = '';
+            
+            let totalHours = 0;
+            let totalSalary = 0;
+            const hourlyRate = data.hourly_rate;
+
+            data.records.forEach(record => {
+                const hours = parseFloat(record.hours) || 0;
+                const salary = hours * hourlyRate;
+                totalHours += hours;
+                totalSalary += salary;
+
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${formatDate(record.day)}</td>
+                    <td>${formatTime(record.time_in)}</td>
+                    <td>${formatTime(record.time_out)}</td>
+                    <td>${hours.toFixed(2)}</td>
+                    <td>${salary.toFixed(2)} ج.م</td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            const totalRow = document.createElement('tr');
+            totalRow.innerHTML = `
+                <td colspan="3" style="text-align: left; font-weight: bold;">المجموع:</td>
+                <td style="font-weight: bold;">${totalHours.toFixed(2)}</td>
+                <td style="font-weight: bold;">${totalSalary.toFixed(2)} ج.م</td>
+            `;
+            tbody.appendChild(totalRow);
+
+            const masroofRow = document.createElement('tr');
+            masroofRow.innerHTML = `
+                <td colspan="4" style="text-align: left; font-weight: bold;">
+                    إجمالي المصروف (${data.attendance_days} أيام × ${data.daily_masroof} ج.م):
+                </td>
+                <td style="font-weight: bold; color: #ff4444;">
+                    - ${data.total_masroof.toFixed(2)} ج.م
+                </td>
+            `;
+            tbody.appendChild(masroofRow);
+
+            const netSalary = totalSalary - data.total_masroof;
+            const netSalaryRow = document.createElement('tr');
+            netSalaryRow.innerHTML = `
+                <td colspan="4" style="text-align: left; font-weight: bold;">صافي الراتب:</td>
+                <td style="font-weight: bold; color: ##4c29ff;">${netSalary.toFixed(2)} ج.م</td>
+            `;
+            tbody.appendChild(netSalaryRow);
+        });
+}
+
+
+function generatePDF() {
+    const container = document.createElement('div');
+    container.style.direction = 'rtl';
+    container.style.display = 'flex';
+    container.style.flexDirection = 'column';
+    container.style.alignItems = 'center';
+    
+    // Create summary page
+    const summaryPage = document.createElement('div');
+    summaryPage.style.pageBreakAfter = 'always';
+    summaryPage.style.width = '100%';
+    summaryPage.style.maxWidth = '1000px';
+    summaryPage.innerHTML = `
+        <div style="text-align: center; margin-bottom: 30px;">
+            <h2>ملخص الرواتب</h2>
+            <p>الفترة من: ${document.getElementById('startDate').value} إلى: ${document.getElementById('endDate').value}</p>
+        </div>
+    `;
+
+    const summaryTable = document.createElement('table');
+    summaryTable.className = 'table table-bordered';
+    summaryTable.style.width = '100%';
+    summaryTable.innerHTML = `
+        <thead>
+            <tr>
+                <th style="width: 40%">الاسم</th>
+                <th style="width: 30%">إجمالي الساعات</th>
+                <th style="width: 30%">إجمالي الراتب</th>
+            </tr>
+        </thead>
+        <tbody>
+    `;
+
+    let totalAllSalaries = 0;
+    const tables = document.querySelectorAll('.table-responsive');
+    
+    tables.forEach(tableContainer => {
+        const name = tableContainer.querySelector('table thead th h3')?.textContent;
+        const lastRow = tableContainer.querySelector('table tbody tr:last-child');
+        
+        if (name && lastRow) {
+            const totalHours = lastRow.cells[lastRow.cells.length - 2]?.textContent || '0';
+            const totalSalaryText = lastRow.cells[lastRow.cells.length - 1]?.textContent || '0';
+            const totalSalary = parseFloat(totalSalaryText.replace(/[^\d.-]/g, '')) || 0;
+            
+            totalAllSalaries += totalSalary;
+            
+            summaryTable.querySelector('tbody').innerHTML += `
+                <tr>
+                    <td style="text-align: right">${name}</td>
+                    <td style="text-align: center">${totalHours}</td>
+                    <td style="text-align: center">${totalSalary.toFixed(2)} ج.م</td>
+                </tr>
+            `;
+        }
+    });
+
+    summaryTable.querySelector('tbody').innerHTML += `
+        <tr style="font-weight: bold;">
+            <td colspan="2" style="text-align: right">إجمالي الرواتب</td>
+            <td style="text-align: center">${totalAllSalaries.toFixed(2)} ج.م</td>
+        </tr>
+    `;
+
+    summaryPage.appendChild(summaryTable);
+    container.appendChild(summaryPage);
+
+    // Add detailed tables
+    tables.forEach((table, index) => {
+        const pageDiv = document.createElement('div');
+        pageDiv.style.width = '100%';
+        pageDiv.style.maxWidth = '1000px';
+        pageDiv.style.marginTop = index === 0 ? '0' : '20px';
+        pageDiv.style.pageBreakInside = 'avoid';
+        
+        const tableClone = table.cloneNode(true);
+        tableClone.style.marginBottom = '0';
+        
+        pageDiv.appendChild(tableClone);
+        container.appendChild(pageDiv);
+    });
+
+    const opt = {
+        margin: [15, 10],
+        filename: `تقرير_الرواتب_${document.getElementById('startDate').value}_${document.getElementById('endDate').value}.pdf`,
+        html2canvas: {
+            scale: 2,
+            useCORS: true,
+            logging: false
+        },
+        jsPDF: {
+            unit: 'mm',
+            format: 'a4',
+            orientation: 'landscape'
+        },
+        pagebreak: { 
+            avoid: ['tr', 'td']
+        }
+    };
+
+    return html2pdf().set(opt).from(container).save();
+}
+
+
+
+document.addEventListener('DOMContentLoaded', function() {
+    fetch('/get_names')
+        .then(response => response.json())
+        .then(data => {
+            const select = document.getElementById('nameSelect');
+            data.forEach(item => {
+                const option = document.createElement('option');
+                option.value = item.name;
+                option.textContent = item.name;
+                select.appendChild(option);
+            });
+        });
+
+    document.getElementById('nameSelect').addEventListener('change', loadAttendance);
+    document.getElementById('startDate').addEventListener('change', loadAttendance);
+    document.getElementById('endDate').addEventListener('change', loadAttendance);
+    document.getElementById('lastWeekBtn').addEventListener('click', () => {
+        const dates = getLastWeekDates();
+        document.getElementById('startDate').value = dates.from;
+        document.getElementById('endDate').value = dates.to;
+        loadAttendance();
+    });
+
+    document.querySelector('.btn-success').addEventListener('click', async () => {
+        const startDate = document.getElementById('startDate').value;
+        const endDate = document.getElementById('endDate').value;
+        
+        if (!startDate || !endDate) {
+            alert('برجاء اختيار التاريخ');
+            return;
+        }
+        
+        const button = document.querySelector('.btn-success');
+        const originalText = button.textContent;
+        button.textContent = 'جاري التحميل...';
+        button.disabled = true;
+
+        try {
+            await generatePDF();
+        } finally {
+            button.textContent = originalText;
+            button.disabled = false;
+        }
+    });
+});
+function loadAllStaffAttendance() {
+    const startDate = document.getElementById('startDate').value;
+    const endDate = document.getElementById('endDate').value;
+    function formatDate(dateString) {
+        if (!dateString) return '';
+        const date = new Date(dateString);
+        const dayName = date.toLocaleDateString('ar-EG', { weekday: 'long' });
+        const formattedDate = date.toLocaleDateString('ar-EG', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit'
+        });
+        return `${dayName} ${formattedDate}`;
+    }
+function formatTime(timeString) {
+    if (!timeString) return '';
+    return timeString;
+}
+
+    if (!startDate || !endDate) {
+        alert('برجاء اختيار التاريخ');
+        return;
+    }
+
+    fetch('/get_names')
+        .then(response => response.json())
+        .then(namesData => {
+            const names = namesData.map(item => item.name);
+            const namesParam = names.map(name => `names[]=${encodeURIComponent(name)}`).join('&');
+            const url = `/get_all_attendance?start_date=${startDate}&end_date=${endDate}&${namesParam}`;
+
+            return fetch(url);
+        })
+        .then(response => response.json())
+        .then(data => {
+            const container = document.getElementById('tables-container');
+            container.innerHTML = '';
+            
+            data.forEach(person => {
+                const section = document.createElement('div');
+                section.className = 'table-responsive mb-5';
+                
+                const table = document.createElement('table');
+                table.className = 'table table-bordered';
+                table.innerHTML = `
+                    <thead>
+                        <tr>
+                            <th colspan="5" class="text-center">
+                                <h3>${person.name}</h3>
+                                <p>المعدل بالساعة: ${person.hourly_rate}</p>
+                            </th>
+                        </tr>
+                        <tr>
+                            <th>اليوم</th>
+                            <th>حضور</th>
+                            <th>انصراف</th>
+                            <th>الساعات</th>
+                            <th>قبض اليوم</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${person.records.map(record => {
+                            const dailySalary = record.hours * person.hourly_rate;
+                            return `
+                                <tr>
+                                    <td>${formatDate(record.day)}</td>
+                                    <td>${formatTime(record.time_in)}</td>
+                                    <td>${formatTime(record.time_out)}</td>
+                                    <td>${record.hours}</td>
+                                    <td>${dailySalary.toFixed(2)} ج.م</td>
+                                </tr>
+                            `;
+                        }).join('')}
+                        <tr>
+                            <td colspan="3" style="text-align: left; font-weight: bold;">المجموع:</td>
+                            <td style="font-weight: bold;">${person.total_hours}</td>
+                            <td style="font-weight: bold;">${person.total_salary.toFixed(2)} ج.م</td>
+                        </tr>
+                        <tr>
+                            <td colspan="4" style="text-align: left; font-weight: bold;">إجمالي المصروف (${person.attendance_days} أيام × ${person.daily_masroof} ج.م):</td>
+                            <td style="font-weight: bold; color: #ff4444;">- ${person.total_masroof.toFixed(2)} ج.م</td>
+                        </tr>
+                        <tr>
+                            <td colspan="4" style="text-align: left; font-weight: bold;">صافي الراتب:</td>
+                            <td style="font-weight: bold; color: ##4c29ff;">${person.net_salary.toFixed(2)} ج.م</td>
+                        </tr>
+                    </tbody>
+                `;
+                
+                section.appendChild(table);
+                container.appendChild(section);
+            });
+        });
+}
+document.getElementById('showAllBtn').addEventListener('click', loadAllStaffAttendance);
+</script>
+
+</body>
+</html>
+
+
